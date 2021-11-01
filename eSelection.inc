@@ -17,29 +17,33 @@
 
 forward OnModelSelectionResponse(playerid, extraid, index, modelid, response);
 
-static Text:g_eMenuRightArrow = Text:INVALID_TEXT_DRAW;
-static Text:g_eMenuLeftArrow = Text:INVALID_TEXT_DRAW;
-static Text:g_eMenuBackground = Text:INVALID_TEXT_DRAW;
-static Text:g_eMenuTopBanner = Text:INVALID_TEXT_DRAW;
-static Text:g_eMenuBottomBanner = Text:INVALID_TEXT_DRAW;
-static Text:g_eMenuCloseButton = Text:INVALID_TEXT_DRAW;
+//global textdraws
+static Text:g_MenuRightArrow = Text:INVALID_TEXT_DRAW;
+static Text:g_MenuLeftArrow = Text:INVALID_TEXT_DRAW;
+static Text:g_MenuBackground = Text:INVALID_TEXT_DRAW;
+static Text:g_MenuTopBanner = Text:INVALID_TEXT_DRAW;
+static Text:g_MenuBottomBanner = Text:INVALID_TEXT_DRAW;
+static Text:g_MenuCloseButton = Text:INVALID_TEXT_DRAW;
 
-enum g_ePlayerMenuEnum
-{
-	PlayerText:g_eMenuHeaderText,
-	PlayerText:g_eMenuPageText,
-	PlayerText:g_eMenuItems[MAX_ITEM_PER_PAGE],
-	PlayerText:g_eMenuTextDisplay[MAX_ITEM_PER_PAGE],
-	List:g_eMenuModels,
-	g_eMenuTotalItems,
-	g_eMenuPage,
-	g_eMenuPages,
-	g_eMenuShown,
-	g_eMenuExtra,
-	g_eMenuTime
-};
+//player textdraws
+static PlayerText:g_MenuHeaderText[MAX_PLAYERS] = {PlayerText:INVALID_TEXT_DRAW, ...};
+static PlayerText:g_MenuPageNumber[MAX_PLAYERS] = {PlayerText:INVALID_TEXT_DRAW, ...};
+static PlayerText:g_MenuItems[MAX_PLAYERS][MAX_ITEM_PER_PAGE] = {{PlayerText:INVALID_TEXT_DRAW, ...}, ...};
+static PlayerText:g_MenuItemText[MAX_PLAYERS][MAX_ITEM_PER_PAGE] = {{PlayerText:INVALID_TEXT_DRAW, ...}, ...};
 
-enum _:g_eMenuModelData //data to be used for displayed models in the menu
+//PawnPlus list for models
+static List:g_MenuModels[MAX_PLAYERS] = {INVALID_LIST, ...};
+
+//general model menu variables
+static g_MenuItemCount[MAX_PLAYERS];
+static g_MenuCurrentPage[MAX_PLAYERS] = {1, ...};
+static g_MenuPageCount[MAX_PLAYERS];
+static bool:g_MenuShown[MAX_PLAYERS];
+static g_MenuExtraID[MAX_PLAYERS];
+static g_MenuCooldownTick[MAX_PLAYERS];
+
+//enum for model data
+static enum _:g_eMenuModelData
 {
 	g_eMenuModel,
 	g_eMenuModelText[MAX_MODEL_TEXT],
@@ -48,9 +52,7 @@ enum _:g_eMenuModelData //data to be used for displayed models in the menu
 	Float:g_eItemRotY,
 	Float:g_eItemRotZ,
 	Float:g_eItemZoom
-};
-
-static stock g_ePlayerMenuData[MAX_PLAYERS][g_ePlayerMenuEnum];
+}
 
 //pawnplus task data
 enum _:E_MODEL_SELECTION_INFO
@@ -59,7 +61,11 @@ enum _:E_MODEL_SELECTION_INFO
 	E_MODEL_SELECTION_INDEX,
 	E_MODEL_SELECTION_MODELID
 }
-const PAWN_PLUS_EXTRA_ID = 0x502B; // "P+" in ascii hex (THANKS GRABER)
+
+//"P+" in ascii hex (THANKS GRABER)
+const PAWN_PLUS_EXTRA_ID = 0x502B;
+
+//pawnplus task
 static Task:ModelSelectionTask[MAX_PLAYERS];
 
 //functions
@@ -78,25 +84,25 @@ stock AddModelMenuItem(List:menulist, modelid, const text[] = "", bool:usingrota
 
 stock ShowModelSelectionMenu(playerid, const header[], extraid, List:items)
 {
-	if(!IsPlayerConnected(playerid)) return 0;
-	if(g_ePlayerMenuData[playerid][g_eMenuShown]) HideModelSelectionMenu(playerid);
+	if(!IsPlayerConnected(playerid)) return false;
+	if(g_MenuShown[playerid]) HideModelSelectionMenu(playerid);
 
-	g_ePlayerMenuData[playerid][g_eMenuModels] = items;
-	g_ePlayerMenuData[playerid][g_eMenuExtra] = extraid;
-	g_ePlayerMenuData[playerid][g_eMenuShown] = true;
-	g_ePlayerMenuData[playerid][g_eMenuTime] = GetTickCount();
-	g_ePlayerMenuData[playerid][g_eMenuPage] = 1;
-	g_ePlayerMenuData[playerid][g_eMenuPages] = (list_size(g_ePlayerMenuData[playerid][g_eMenuModels]) / MAX_ITEM_PER_PAGE) + 1;
+	g_MenuModels[playerid] = items;
+	g_MenuExtraID[playerid] = extraid;
+	g_MenuShown[playerid] = true;
+	g_MenuCooldownTick[playerid] = GetTickCount();
+	g_MenuCurrentPage[playerid] = 1;
+	g_MenuPageCount[playerid] = (list_size(items) / MAX_ITEM_PER_PAGE) + 1;
 
 	ShowModelSelectionMenuTextDraws(playerid, header);
-	return 1;
+	return true;
 }
 
 stock Task:ShowAsyncModelSelectionMenu(playerid, const header[], List:items)
 {
 	if(task_valid(ModelSelectionTask[playerid])) task_delete(ModelSelectionTask[playerid]);
-	ModelSelectionTask[playerid] = task_new();
 
+	ModelSelectionTask[playerid] = task_new();
 	ShowModelSelectionMenu(playerid, header, PAWN_PLUS_EXTRA_ID, items);
 	return ModelSelectionTask[playerid];
 }
@@ -106,7 +112,7 @@ static stock ShowModelSelectionMenuTextDraws(playerid, const header[])
 	DestroyModelSelectionPlayerTDs(playerid);
 	CreateModelSelectionPlayerTDs(playerid);
 
-	for(new Iter:i = list_iter(g_ePlayerMenuData[playerid][g_eMenuModels]), count, model[g_eMenuModelData]; iter_inside(i); iter_move_next(i))
+	for(new Iter:i = list_iter(g_MenuModels[playerid]), count, model[g_eMenuModelData]; iter_inside(i); iter_move_next(i))
 	{
 		if(count >= MAX_ITEM_PER_PAGE) break;
 
@@ -117,61 +123,63 @@ static stock ShowModelSelectionMenuTextDraws(playerid, const header[])
 
 	//page TD
 	new page[8];
-	format(page, sizeof(page), "1/%d", (list_size(g_ePlayerMenuData[playerid][g_eMenuModels]) / MAX_ITEM_PER_PAGE) + 1);
-	PlayerTextDrawSetString(playerid, g_ePlayerMenuData[playerid][g_eMenuPageText], page);
+	format(page, sizeof(page), "1/%d", (list_size(g_MenuModels[playerid]) / MAX_ITEM_PER_PAGE) + 1);
+	PlayerTextDrawSetString(playerid, g_MenuPageNumber[playerid], page);
 
-	//header test
-	PlayerTextDrawSetString(playerid, g_ePlayerMenuData[playerid][g_eMenuHeaderText], header);
-	PlayerTextDrawShow(playerid, g_ePlayerMenuData[playerid][g_eMenuHeaderText]);
-	PlayerTextDrawShow(playerid, g_ePlayerMenuData[playerid][g_eMenuPageText]);
+	//header text
+	PlayerTextDrawSetString(playerid, g_MenuHeaderText[playerid], header);
+	PlayerTextDrawShow(playerid, g_MenuHeaderText[playerid]);
+	PlayerTextDrawShow(playerid, g_MenuPageNumber[playerid]);
 
-	TextDrawShowForPlayer(playerid, g_eMenuRightArrow);
-	TextDrawShowForPlayer(playerid, g_eMenuLeftArrow);
-	TextDrawShowForPlayer(playerid, g_eMenuBackground);
-	TextDrawShowForPlayer(playerid, g_eMenuTopBanner);
-	TextDrawShowForPlayer(playerid, g_eMenuBottomBanner);
-	TextDrawShowForPlayer(playerid, g_eMenuCloseButton);
+	TextDrawShowForPlayer(playerid, g_MenuRightArrow);
+	TextDrawShowForPlayer(playerid, g_MenuLeftArrow);
+	TextDrawShowForPlayer(playerid, g_MenuBackground);
+	TextDrawShowForPlayer(playerid, g_MenuTopBanner);
+	TextDrawShowForPlayer(playerid, g_MenuBottomBanner);
+	TextDrawShowForPlayer(playerid, g_MenuCloseButton);
 	SelectTextDraw(playerid, -1);
 }
 
 static stock HideModelSelectionMenu(playerid)
 {
-	if(!IsPlayerConnected(playerid) || !g_ePlayerMenuData[playerid][g_eMenuShown]) return 0;
+	if(!IsPlayerConnected(playerid) || !g_MenuShown[playerid]) return false;
 
-	TextDrawHideForPlayer(playerid, g_eMenuRightArrow);
-	TextDrawHideForPlayer(playerid, g_eMenuLeftArrow);
-	TextDrawHideForPlayer(playerid, g_eMenuBackground);
-	TextDrawHideForPlayer(playerid, g_eMenuTopBanner);
-	TextDrawHideForPlayer(playerid, g_eMenuBottomBanner);
-	TextDrawHideForPlayer(playerid, g_eMenuCloseButton);
+	TextDrawHideForPlayer(playerid, g_MenuRightArrow);
+	TextDrawHideForPlayer(playerid, g_MenuLeftArrow);
+	TextDrawHideForPlayer(playerid, g_MenuBackground);
+	TextDrawHideForPlayer(playerid, g_MenuTopBanner);
+	TextDrawHideForPlayer(playerid, g_MenuBottomBanner);
+	TextDrawHideForPlayer(playerid, g_MenuCloseButton);
 
 	DestroyModelSelectionPlayerTDs(playerid);
 
-	g_ePlayerMenuData[playerid][g_eMenuShown] = false;
-	g_ePlayerMenuData[playerid][g_eMenuTotalItems] = 0;
-	g_ePlayerMenuData[playerid][g_eMenuExtra] = 0;
-	g_ePlayerMenuData[playerid][g_eMenuPage] = 1;
-	g_ePlayerMenuData[playerid][g_eMenuPages] = 0;
+	g_MenuShown[playerid] = false;
+	g_MenuItemCount[playerid] = 0;
+	g_MenuExtraID[playerid] = 0;
+	g_MenuCurrentPage[playerid] = 1;
+	g_MenuPageCount[playerid] = 0;
 
-	list_delete(g_ePlayerMenuData[playerid][g_eMenuModels]);
+	if(list_valid(g_MenuModels[playerid])) list_delete(g_MenuModels[playerid]);
+	g_MenuModels[playerid] = INVALID_LIST;
+
 	CancelSelectTextDraw(playerid);
-	return 1;
+	return true;
 }
 
-static stock Menu_SetPage(playerid, page)
+static stock SetModelSelectionMenuPage(playerid, page)
 {
-	if(!g_ePlayerMenuData[playerid][g_eMenuShown]) return 0;
-	if(page < 1 || page > g_ePlayerMenuData[playerid][g_eMenuPages]) return 0;
+	if(!g_MenuShown[playerid]) return false;
+	if(page < 1 || page > g_MenuPageCount[playerid]) return false;
 
-	new start = (MAX_ITEM_PER_PAGE * (page - 1)), str[16];
+	new start = (MAX_ITEM_PER_PAGE * (page - 1));
 
 	for(new i = 0; i < MAX_ITEM_PER_PAGE; i ++)
 	{
-		PlayerTextDrawHide(playerid, g_ePlayerMenuData[playerid][g_eMenuItems][i]);
-		PlayerTextDrawHide(playerid, g_ePlayerMenuData[playerid][g_eMenuTextDisplay][i]);
+		PlayerTextDrawHide(playerid, g_MenuItems[playerid][i]);
+		PlayerTextDrawHide(playerid, g_MenuItemText[playerid][i]);
 	}
 
-	for(new Iter:i = list_iter(g_ePlayerMenuData[playerid][g_eMenuModels], start), count, model[g_eMenuModelData]; iter_inside(i); iter_move_next(i))
+	for(new Iter:i = list_iter(g_MenuModels[playerid], start), count, model[g_eMenuModelData]; iter_inside(i); iter_move_next(i))
 	{
 		if(count >= MAX_ITEM_PER_PAGE) break;
 
@@ -179,57 +187,58 @@ static stock Menu_SetPage(playerid, page)
 		SetModelSelectionModelBox(playerid, count, model);
 		count ++;
 	}
-	g_ePlayerMenuData[playerid][g_eMenuPage] = page;
+	g_MenuCurrentPage[playerid] = page;
 
-	format(str, 8, "%d/%d", page, g_ePlayerMenuData[playerid][g_eMenuPages]);
-	PlayerTextDrawSetString(playerid, g_ePlayerMenuData[playerid][g_eMenuPageText], str);
-	return 1;
+	new pagetext[12];
+	format(pagetext, sizeof(pagetext), "%d/%d", page,  g_MenuPageCount[playerid]);
+	PlayerTextDrawSetString(playerid, g_MenuPageNumber[playerid], pagetext);
+	return true;
 }
 
 static stock SetModelSelectionModelBox(playerid, count, const model[g_eMenuModelData])
 {
-	PlayerTextDrawSetPreviewModel(playerid, g_ePlayerMenuData[playerid][g_eMenuItems][count], model[g_eMenuModel]);
+	PlayerTextDrawSetPreviewModel(playerid, g_MenuItems[playerid][count], model[g_eMenuModel]);
 	if(model[g_eItemUseRotation])
 	{
-		PlayerTextDrawSetPreviewRot(playerid, g_ePlayerMenuData[playerid][g_eMenuItems][count], model[g_eItemRotX], model[g_eItemRotY], model[g_eItemRotZ], model[g_eItemZoom]);
+		PlayerTextDrawSetPreviewRot(playerid, g_MenuItems[playerid][count], model[g_eItemRotX], model[g_eItemRotY], model[g_eItemRotZ], model[g_eItemZoom]);
 	}
 	else
 	{
-		PlayerTextDrawSetPreviewRot(playerid, g_ePlayerMenuData[playerid][g_eMenuItems][count], 0.0, 0.0, 0.0);
+		PlayerTextDrawSetPreviewRot(playerid, g_MenuItems[playerid][count], 0.0, 0.0, 0.0);
 	}
 
-	PlayerTextDrawShow(playerid, g_ePlayerMenuData[playerid][g_eMenuItems][count]);
+	PlayerTextDrawShow(playerid, g_MenuItems[playerid][count]);
 
 	if(model[g_eMenuModelText][0])
 	{
-		PlayerTextDrawSetString(playerid, g_ePlayerMenuData[playerid][g_eMenuTextDisplay][count], model[g_eMenuModelText]);
-		PlayerTextDrawShow(playerid, g_ePlayerMenuData[playerid][g_eMenuTextDisplay][count]);
+		PlayerTextDrawSetString(playerid, g_MenuItemText[playerid][count], model[g_eMenuModelText]);
+		PlayerTextDrawShow(playerid, g_MenuItemText[playerid][count]);
 	}
 }
 
 static stock CreateModelSelectionPlayerTDs(playerid)
 {
 	//page TD
-	g_ePlayerMenuData[playerid][g_eMenuPageText] = CreatePlayerTextDraw(playerid, 523.333251, 139.792648, "0/1");
-	PlayerTextDrawLetterSize(playerid, g_ePlayerMenuData[playerid][g_eMenuPageText], 0.190666, 1.110518);
-	PlayerTextDrawAlignment(playerid, g_ePlayerMenuData[playerid][g_eMenuPageText], 3);
-	PlayerTextDrawColor(playerid, g_ePlayerMenuData[playerid][g_eMenuPageText], 0xC0C0C0FF);
-	PlayerTextDrawSetShadow(playerid, g_ePlayerMenuData[playerid][g_eMenuPageText], 0);
-	PlayerTextDrawSetOutline(playerid, g_ePlayerMenuData[playerid][g_eMenuPageText], 1);
-	PlayerTextDrawBackgroundColor(playerid, g_ePlayerMenuData[playerid][g_eMenuPageText], 0x00000033);
-	PlayerTextDrawFont(playerid, g_ePlayerMenuData[playerid][g_eMenuPageText], 2);
-	PlayerTextDrawSetProportional(playerid, g_ePlayerMenuData[playerid][g_eMenuPageText], 1);
+	g_MenuPageNumber[playerid] = CreatePlayerTextDraw(playerid, 523.333251, 139.792648, "0/1");
+	PlayerTextDrawLetterSize(playerid, g_MenuPageNumber[playerid], 0.190666, 1.110518);
+	PlayerTextDrawAlignment(playerid, g_MenuPageNumber[playerid], 3);
+	PlayerTextDrawColor(playerid, g_MenuPageNumber[playerid], 0xC0C0C0FF);
+	PlayerTextDrawSetShadow(playerid, g_MenuPageNumber[playerid], 0);
+	PlayerTextDrawSetOutline(playerid, g_MenuPageNumber[playerid], 1);
+	PlayerTextDrawBackgroundColor(playerid, g_MenuPageNumber[playerid], 0x00000033);
+	PlayerTextDrawFont(playerid, g_MenuPageNumber[playerid], 2);
+	PlayerTextDrawSetProportional(playerid, g_MenuPageNumber[playerid], 1);
 
 	//header test
-	g_ePlayerMenuData[playerid][g_eMenuHeaderText] = CreatePlayerTextDraw(playerid, 128.333312, 139.377761, "header");
-	PlayerTextDrawLetterSize(playerid, g_ePlayerMenuData[playerid][g_eMenuHeaderText], 0.315000, 1.247407);
-	PlayerTextDrawAlignment(playerid, g_ePlayerMenuData[playerid][g_eMenuHeaderText], 1);
-	PlayerTextDrawColor(playerid, g_ePlayerMenuData[playerid][g_eMenuHeaderText], 0xC0C0C0FF);
-	PlayerTextDrawSetShadow(playerid, g_ePlayerMenuData[playerid][g_eMenuHeaderText], 0);
-	PlayerTextDrawSetOutline(playerid, g_ePlayerMenuData[playerid][g_eMenuHeaderText], 1);
-	PlayerTextDrawBackgroundColor(playerid, g_ePlayerMenuData[playerid][g_eMenuHeaderText], 0x00000033);
-	PlayerTextDrawFont(playerid, g_ePlayerMenuData[playerid][g_eMenuHeaderText], 2);
-	PlayerTextDrawSetProportional(playerid, g_ePlayerMenuData[playerid][g_eMenuHeaderText], 1);
+	g_MenuHeaderText[playerid] = CreatePlayerTextDraw(playerid, 128.333312, 139.377761, "header");
+	PlayerTextDrawLetterSize(playerid, g_MenuHeaderText[playerid], 0.315000, 1.247407);
+	PlayerTextDrawAlignment(playerid, g_MenuHeaderText[playerid], 1);
+	PlayerTextDrawColor(playerid, g_MenuHeaderText[playerid], 0xC0C0C0FF);
+	PlayerTextDrawSetShadow(playerid, g_MenuHeaderText[playerid], 0);
+	PlayerTextDrawSetOutline(playerid, g_MenuHeaderText[playerid], 1);
+	PlayerTextDrawBackgroundColor(playerid, g_MenuHeaderText[playerid], 0x00000033);
+	PlayerTextDrawFont(playerid, g_MenuHeaderText[playerid], 2);
+	PlayerTextDrawSetProportional(playerid, g_MenuHeaderText[playerid], 1);
 
 	new Float:x = 78.0, Float:y = 162.0;
 	for(new i = 0, idx = 0; i < MAX_ITEM_PER_PAGE; i ++)
@@ -245,169 +254,157 @@ static stock CreateModelSelectionPlayerTDs(playerid)
 		}
 		idx++;
 
-		g_ePlayerMenuData[playerid][g_eMenuItems][i] = CreatePlayerTextDraw(playerid, x, y, "_");
-		PlayerTextDrawBackgroundColor(playerid, g_ePlayerMenuData[playerid][g_eMenuItems][i], 0xD3D3D344);
-		PlayerTextDrawFont(playerid, g_ePlayerMenuData[playerid][g_eMenuItems][i], 5);
-		PlayerTextDrawLetterSize(playerid, g_ePlayerMenuData[playerid][g_eMenuItems][i], 1.430000, 5.700000);
-		PlayerTextDrawColor(playerid, g_ePlayerMenuData[playerid][g_eMenuItems][i], -1);
-		PlayerTextDrawSetOutline(playerid, g_ePlayerMenuData[playerid][g_eMenuItems][i], 1);
-		PlayerTextDrawSetProportional(playerid, g_ePlayerMenuData[playerid][g_eMenuItems][i], 1);
-		PlayerTextDrawUseBox(playerid, g_ePlayerMenuData[playerid][g_eMenuItems][i], 1);
-		PlayerTextDrawBoxColor(playerid, g_ePlayerMenuData[playerid][g_eMenuItems][i], 0);
-		PlayerTextDrawTextSize(playerid, g_ePlayerMenuData[playerid][g_eMenuItems][i], 61.000000, 54.000000);
-		PlayerTextDrawSetSelectable(playerid, g_ePlayerMenuData[playerid][g_eMenuItems][i], 1);
+		g_MenuItems[playerid][i] = CreatePlayerTextDraw(playerid, x, y, "_");
+		PlayerTextDrawBackgroundColor(playerid, g_MenuItems[playerid][i], 0xD3D3D344);
+		PlayerTextDrawFont(playerid, g_MenuItems[playerid][i], 5);
+		PlayerTextDrawLetterSize(playerid, g_MenuItems[playerid][i], 1.430000, 5.700000);
+		PlayerTextDrawColor(playerid, g_MenuItems[playerid][i], -1);
+		PlayerTextDrawSetOutline(playerid, g_MenuItems[playerid][i], 1);
+		PlayerTextDrawSetProportional(playerid, g_MenuItems[playerid][i], 1);
+		PlayerTextDrawUseBox(playerid, g_MenuItems[playerid][i], 1);
+		PlayerTextDrawBoxColor(playerid, g_MenuItems[playerid][i], 0);
+		PlayerTextDrawTextSize(playerid, g_MenuItems[playerid][i], 61.000000, 54.000000);
+		PlayerTextDrawSetSelectable(playerid, g_MenuItems[playerid][i], 1);
 
-		g_ePlayerMenuData[playerid][g_eMenuTextDisplay][i] = CreatePlayerTextDraw(playerid, x + 31.0, y, "_");
-		PlayerTextDrawFont(playerid, g_ePlayerMenuData[playerid][g_eMenuTextDisplay][i], 2);
-		PlayerTextDrawLetterSize(playerid, g_ePlayerMenuData[playerid][g_eMenuTextDisplay][i], 0.199999, 0.6);
-		PlayerTextDrawAlignment(playerid, g_ePlayerMenuData[playerid][g_eMenuTextDisplay][i], 2);
-		PlayerTextDrawSetOutline(playerid, g_ePlayerMenuData[playerid][g_eMenuTextDisplay][i], 0);
-		PlayerTextDrawSetProportional(playerid, g_ePlayerMenuData[playerid][g_eMenuTextDisplay][i], 1);
-		PlayerTextDrawTextSize(playerid, g_ePlayerMenuData[playerid][g_eMenuTextDisplay][i], 0.0, 62.0);
-		PlayerTextDrawSetShadow(playerid, g_ePlayerMenuData[playerid][g_eMenuTextDisplay][i], 0);
-		PlayerTextDrawColor(playerid, g_ePlayerMenuData[playerid][g_eMenuTextDisplay][i], 0xD3D3D3AA);
+		g_MenuItemText[playerid][i] = CreatePlayerTextDraw(playerid, x + 31.0, y, "_");
+		PlayerTextDrawFont(playerid, g_MenuItemText[playerid][i], 2);
+		PlayerTextDrawLetterSize(playerid, g_MenuItemText[playerid][i], 0.199999, 0.6);
+		PlayerTextDrawAlignment(playerid, g_MenuItemText[playerid][i], 2);
+		PlayerTextDrawSetOutline(playerid, g_MenuItemText[playerid][i], 0);
+		PlayerTextDrawSetProportional(playerid, g_MenuItemText[playerid][i], 1);
+		PlayerTextDrawTextSize(playerid, g_MenuItemText[playerid][i], 0.0, 62.0);
+		PlayerTextDrawSetShadow(playerid, g_MenuItemText[playerid][i], 0);
+		PlayerTextDrawColor(playerid, g_MenuItemText[playerid][i], 0xD3D3D3AA);
 	}
 }
 
 static stock DestroyModelSelectionPlayerTDs(playerid)
 {
-	PlayerTextDrawDestroy(playerid, g_ePlayerMenuData[playerid][g_eMenuHeaderText]);
-	PlayerTextDrawDestroy(playerid, g_ePlayerMenuData[playerid][g_eMenuPageText]);
+	if(g_MenuHeaderText[playerid] != PlayerText:INVALID_TEXT_DRAW) PlayerTextDrawDestroy(playerid, g_MenuHeaderText[playerid]);
+	if(g_MenuPageNumber[playerid] != PlayerText:INVALID_TEXT_DRAW) PlayerTextDrawDestroy(playerid, g_MenuPageNumber[playerid]);
 
-	g_ePlayerMenuData[playerid][g_eMenuHeaderText] = PlayerText:INVALID_TEXT_DRAW;
-	g_ePlayerMenuData[playerid][g_eMenuPageText] = PlayerText:INVALID_TEXT_DRAW;
+	g_MenuHeaderText[playerid] = PlayerText:INVALID_TEXT_DRAW;
+	g_MenuPageNumber[playerid] = PlayerText:INVALID_TEXT_DRAW;
 
 	for(new i = 0; i < MAX_ITEM_PER_PAGE; i++)
 	{
-		PlayerTextDrawDestroy(playerid, g_ePlayerMenuData[playerid][g_eMenuTextDisplay][i]);
-		PlayerTextDrawDestroy(playerid, g_ePlayerMenuData[playerid][g_eMenuItems][i]);
+		if(g_MenuItems[playerid][i] != PlayerText:INVALID_TEXT_DRAW) PlayerTextDrawDestroy(playerid, g_MenuItems[playerid][i]);
+		if(g_MenuItemText[playerid][i] != PlayerText:INVALID_TEXT_DRAW) PlayerTextDrawDestroy(playerid, g_MenuItemText[playerid][i]);
 
-		g_ePlayerMenuData[playerid][g_eMenuTextDisplay][i] = PlayerText:INVALID_TEXT_DRAW;
-		g_ePlayerMenuData[playerid][g_eMenuItems][i] = PlayerText:INVALID_TEXT_DRAW;
+		g_MenuItems[playerid][i] = PlayerText:INVALID_TEXT_DRAW;
+		g_MenuItemText[playerid][i] = PlayerText:INVALID_TEXT_DRAW;
 	}
 }
 
 //callbacks
 public OnGameModeInit()
 {
-	for(new i = 0; i < MAX_PLAYERS; i++)
-	{
-		g_ePlayerMenuData[i][g_eMenuPageText] = PlayerText:INVALID_TEXT_DRAW;
-		g_ePlayerMenuData[i][g_eMenuHeaderText] = PlayerText:INVALID_TEXT_DRAW;
-
-		for(new p = 0; p < MAX_ITEM_PER_PAGE; p++)
-		{
-			g_ePlayerMenuData[i][g_eMenuItems][p] = PlayerText:INVALID_TEXT_DRAW;
-			g_ePlayerMenuData[i][g_eMenuTextDisplay][p] = PlayerText:INVALID_TEXT_DRAW;
-		}
-	}
-
 	//textdraw background
-	g_eMenuBackground = TextDrawCreate(531.333374, 140.877777, "_");
-	TextDrawBackgroundColor(g_eMenuBackground, 0);
-	TextDrawAlignment(g_eMenuBackground, 1);
-	TextDrawFont(g_eMenuBackground, 0);
-	TextDrawLetterSize(g_eMenuBackground, 0.000000, 22.912965);
-	TextDrawColor(g_eMenuBackground, 0);
-	TextDrawSetOutline(g_eMenuBackground, 0);
-	TextDrawSetProportional(g_eMenuBackground, 1);
-	TextDrawSetShadow(g_eMenuBackground, 0);
-	TextDrawUseBox(g_eMenuBackground, 1);
-	TextDrawBoxColor(g_eMenuBackground, 0x000000DD);
-	TextDrawTextSize(g_eMenuBackground, 121.333328, 0.000000);
-	TextDrawSetSelectable(g_eMenuBackground, 0);
+	g_MenuBackground = TextDrawCreate(531.333374, 140.877777, "_");
+	TextDrawBackgroundColor(g_MenuBackground, 0);
+	TextDrawAlignment(g_MenuBackground, 1);
+	TextDrawFont(g_MenuBackground, 0);
+	TextDrawLetterSize(g_MenuBackground, 0.000000, 22.912965);
+	TextDrawColor(g_MenuBackground, 0);
+	TextDrawSetOutline(g_MenuBackground, 0);
+	TextDrawSetProportional(g_MenuBackground, 1);
+	TextDrawSetShadow(g_MenuBackground, 0);
+	TextDrawUseBox(g_MenuBackground, 1);
+	TextDrawBoxColor(g_MenuBackground, 0x000000DD);
+	TextDrawTextSize(g_MenuBackground, 121.333328, 0.000000);
+	TextDrawSetSelectable(g_MenuBackground, 0);
 
 	//right arrow
-	g_eMenuRightArrow = TextDrawCreate(521.333374, 339.318542, "LD_BEAT:right");
-	TextDrawLetterSize(g_eMenuRightArrow, 0.000000, 0.000000);
-	TextDrawTextSize(g_eMenuRightArrow, 5.999938, 7.051818);
-	TextDrawAlignment(g_eMenuRightArrow, 1);
-	TextDrawColor(g_eMenuRightArrow, -1);
-	TextDrawSetShadow(g_eMenuRightArrow, 0);
-	TextDrawSetOutline(g_eMenuRightArrow, 0);
-	TextDrawFont(g_eMenuRightArrow, 4);
-	TextDrawSetSelectable(g_eMenuRightArrow, true);
+	g_MenuRightArrow = TextDrawCreate(521.333374, 339.318542, "LD_BEAT:right");
+	TextDrawLetterSize(g_MenuRightArrow, 0.000000, 0.000000);
+	TextDrawTextSize(g_MenuRightArrow, 5.999938, 7.051818);
+	TextDrawAlignment(g_MenuRightArrow, 1);
+	TextDrawColor(g_MenuRightArrow, -1);
+	TextDrawSetShadow(g_MenuRightArrow, 0);
+	TextDrawSetOutline(g_MenuRightArrow, 0);
+	TextDrawFont(g_MenuRightArrow, 4);
+	TextDrawSetSelectable(g_MenuRightArrow, true);
 
 	//left arrow
-	g_eMenuLeftArrow = TextDrawCreate(507.000305, 339.074066, "LD_BEAT:left");
-	TextDrawLetterSize(g_eMenuLeftArrow, 0.000000, 0.000000);
-	TextDrawTextSize(g_eMenuLeftArrow, 5.999938, 7.051818);
-	TextDrawAlignment(g_eMenuLeftArrow, 1);
-	TextDrawColor(g_eMenuLeftArrow, -1);
-	TextDrawSetShadow(g_eMenuLeftArrow, 0);
-	TextDrawSetOutline(g_eMenuLeftArrow, 0);
-	TextDrawFont(g_eMenuLeftArrow, 4);
-	TextDrawSetSelectable(g_eMenuLeftArrow, true);
+	g_MenuLeftArrow = TextDrawCreate(507.000305, 339.074066, "LD_BEAT:left");
+	TextDrawLetterSize(g_MenuLeftArrow, 0.000000, 0.000000);
+	TextDrawTextSize(g_MenuLeftArrow, 5.999938, 7.051818);
+	TextDrawAlignment(g_MenuLeftArrow, 1);
+	TextDrawColor(g_MenuLeftArrow, -1);
+	TextDrawSetShadow(g_MenuLeftArrow, 0);
+	TextDrawSetOutline(g_MenuLeftArrow, 0);
+	TextDrawFont(g_MenuLeftArrow, 4);
+	TextDrawSetSelectable(g_MenuLeftArrow, true);
 
 	//top banner strip
-	g_eMenuTopBanner = TextDrawCreate(531.000244, 155.811111, "TopBanner");
-	TextDrawLetterSize(g_eMenuTopBanner, 0.000000, -0.447120);
-	TextDrawTextSize(g_eMenuTopBanner, 121.333328, 0.000000);
-	TextDrawAlignment(g_eMenuTopBanner, 1);
-	TextDrawColor(g_eMenuTopBanner, 0);
-	TextDrawUseBox(g_eMenuTopBanner, true);
-	TextDrawBoxColor(g_eMenuTopBanner, 0x808080FF);
-	TextDrawSetShadow(g_eMenuTopBanner, 0);
-	TextDrawSetOutline(g_eMenuTopBanner, 0);
-	TextDrawFont(g_eMenuTopBanner, 0);
+	g_MenuTopBanner = TextDrawCreate(531.000244, 155.811111, "TopBanner");
+	TextDrawLetterSize(g_MenuTopBanner, 0.000000, -0.447120);
+	TextDrawTextSize(g_MenuTopBanner, 121.333328, 0.000000);
+	TextDrawAlignment(g_MenuTopBanner, 1);
+	TextDrawColor(g_MenuTopBanner, 0);
+	TextDrawUseBox(g_MenuTopBanner, true);
+	TextDrawBoxColor(g_MenuTopBanner, 0x808080FF);
+	TextDrawSetShadow(g_MenuTopBanner, 0);
+	TextDrawSetOutline(g_MenuTopBanner, 0);
+	TextDrawFont(g_MenuTopBanner, 0);
 
 	//bottom banner strip
-	g_eMenuBottomBanner = TextDrawCreate(531.333618, 338.500305, "BottomBanner");
-	TextDrawLetterSize(g_eMenuBottomBanner, 0.000000, -0.447120);
-	TextDrawTextSize(g_eMenuBottomBanner, 120.666656, 0.000000);
-	TextDrawAlignment(g_eMenuBottomBanner, 1);
-	TextDrawColor(g_eMenuBottomBanner, 0);
-	TextDrawUseBox(g_eMenuBottomBanner, true);
-	TextDrawBoxColor(g_eMenuBottomBanner, 0x808080FF);
-	TextDrawSetShadow(g_eMenuBottomBanner, 0);
-	TextDrawSetOutline(g_eMenuBottomBanner, 0);
-	TextDrawFont(g_eMenuBottomBanner, 0);
+	g_MenuBottomBanner = TextDrawCreate(531.333618, 338.500305, "BottomBanner");
+	TextDrawLetterSize(g_MenuBottomBanner, 0.000000, -0.447120);
+	TextDrawTextSize(g_MenuBottomBanner, 120.666656, 0.000000);
+	TextDrawAlignment(g_MenuBottomBanner, 1);
+	TextDrawColor(g_MenuBottomBanner, 0);
+	TextDrawUseBox(g_MenuBottomBanner, true);
+	TextDrawBoxColor(g_MenuBottomBanner, 0x808080FF);
+	TextDrawSetShadow(g_MenuBottomBanner, 0);
+	TextDrawSetOutline(g_MenuBottomBanner, 0);
+	TextDrawFont(g_MenuBottomBanner, 0);
 
 	//close button
-	g_eMenuCloseButton = TextDrawCreate(490.666809, 337.829711, "CLOSE");
-	TextDrawLetterSize(g_eMenuCloseButton, 0.128333, 0.957036);
-	TextDrawTextSize(g_eMenuCloseButton, 10.5021, 10.0187);
-	TextDrawAlignment(g_eMenuCloseButton, 2);
-	TextDrawColor(g_eMenuCloseButton, 0xC0C0C0FF);
-	TextDrawSetShadow(g_eMenuCloseButton, 0);
-	TextDrawSetOutline(g_eMenuCloseButton, 0);
-	TextDrawBackgroundColor(g_eMenuCloseButton, 0x00000033);
-	TextDrawFont(g_eMenuCloseButton, 2);
-	TextDrawSetProportional(g_eMenuCloseButton, 1);
-	TextDrawSetSelectable(g_eMenuCloseButton, true);
+	g_MenuCloseButton = TextDrawCreate(490.666809, 337.829711, "CLOSE");
+	TextDrawLetterSize(g_MenuCloseButton, 0.128333, 0.957036);
+	TextDrawTextSize(g_MenuCloseButton, 10.5021, 10.0187);
+	TextDrawAlignment(g_MenuCloseButton, 2);
+	TextDrawColor(g_MenuCloseButton, 0xC0C0C0FF);
+	TextDrawSetShadow(g_MenuCloseButton, 0);
+	TextDrawSetOutline(g_MenuCloseButton, 0);
+	TextDrawBackgroundColor(g_MenuCloseButton, 0x00000033);
+	TextDrawFont(g_MenuCloseButton, 2);
+	TextDrawSetProportional(g_MenuCloseButton, 1);
+	TextDrawSetSelectable(g_MenuCloseButton, true);
 
 	#if defined MS_OnGameModeInit
 		return MS_OnGameModeInit();
 	#else
-		return 1;
+		return true;
 	#endif
 }
 
 public OnPlayerDisconnect(playerid, reason)
 {
-	g_ePlayerMenuData[playerid][g_eMenuPageText] = PlayerText:INVALID_TEXT_DRAW;
-	g_ePlayerMenuData[playerid][g_eMenuHeaderText] = PlayerText:INVALID_TEXT_DRAW;
+	g_MenuHeaderText[playerid] = PlayerText:INVALID_TEXT_DRAW;
+	g_MenuPageNumber[playerid] = PlayerText:INVALID_TEXT_DRAW;
 
 	for(new i = 0; i < MAX_ITEM_PER_PAGE; i++)
 	{
-		g_ePlayerMenuData[playerid][g_eMenuItems][i] = PlayerText:INVALID_TEXT_DRAW;
-		g_ePlayerMenuData[playerid][g_eMenuTextDisplay][i] = PlayerText:INVALID_TEXT_DRAW;
+		g_MenuItems[playerid][i] = PlayerText:INVALID_TEXT_DRAW;
+		g_MenuItemText[playerid][i] = PlayerText:INVALID_TEXT_DRAW;
 	}
 
 	#if defined MS_OnPlayerDisconnect
 		return MS_OnPlayerDisconnect(playerid, reason);
 	#else
-		return 1;
+		return true;
 	#endif
 }
 
 public OnPlayerClickTextDraw(playerid, Text:clickedid)
 {
-	if(g_ePlayerMenuData[playerid][g_eMenuShown] && (clickedid == Text:INVALID_TEXT_DRAW || clickedid == g_eMenuCloseButton))
+	if(g_MenuShown[playerid] && (clickedid == Text:INVALID_TEXT_DRAW || clickedid == g_MenuCloseButton))
 	{
-		if(g_ePlayerMenuData[playerid][g_eMenuExtra] != PAWN_PLUS_EXTRA_ID)
+		if(g_MenuExtraID[playerid] != PAWN_PLUS_EXTRA_ID)
 		{
-			CallLocalFunction("OnModelSelectionResponse", "iiiii", playerid, g_ePlayerMenuData[playerid][g_eMenuExtra], 0, 0, MODEL_RESPONSE_CANCEL);
+			CallLocalFunction("OnModelSelectionResponse", "iiiii", playerid, g_MenuExtraID[playerid], 0, 0, MODEL_RESPONSE_CANCEL);
 			HideModelSelectionMenu(playerid);
 		}
 		else
@@ -424,40 +421,40 @@ public OnPlayerClickTextDraw(playerid, Text:clickedid)
 			task_set_result_arr(task, model_response);
 		}
 	}
-	else if(clickedid == g_eMenuRightArrow)
+	else if(clickedid == g_MenuRightArrow)
 	{
-		if(g_ePlayerMenuData[playerid][g_eMenuPage] == g_ePlayerMenuData[playerid][g_eMenuPages]) return false;
+		if(g_MenuCurrentPage[playerid] == g_MenuPageCount[playerid]) return false;
 
-		Menu_SetPage(playerid, g_ePlayerMenuData[playerid][g_eMenuPage] + 1);
+		SetModelSelectionMenuPage(playerid, g_MenuCurrentPage[playerid] + 1);
 		return true;
 	}
-	else if(clickedid == g_eMenuLeftArrow)
+	else if(clickedid == g_MenuLeftArrow)
 	{
-		if(g_ePlayerMenuData[playerid][g_eMenuPage] < 2) return false;
+		if(g_MenuCurrentPage[playerid] <= 1) return false;
 
-		else Menu_SetPage(playerid, g_ePlayerMenuData[playerid][g_eMenuPage] - 1);
+		else SetModelSelectionMenuPage(playerid, g_MenuCurrentPage[playerid] - 1);
 		return true;
 	}
 
 	#if defined MS_OnPlayerClickTextDraw
 		return MS_OnPlayerClickTextDraw(playerid, Text:clickedid);
 	#else
-		return 1;
+		return true;
 	#endif
 }
 
 public OnPlayerClickPlayerTextDraw(playerid, PlayerText:playertextid)
 {
-	if(g_ePlayerMenuData[playerid][g_eMenuShown] && (GetTickCount() - g_ePlayerMenuData[playerid][g_eMenuTime]) > 600)
+	if(g_MenuShown[playerid] && (GetTickCount() - g_MenuCooldownTick[playerid]) > 600)
 	{
 		for(new i = 0; i < MAX_ITEM_PER_PAGE; i ++)
 		{
-			if(g_ePlayerMenuData[playerid][g_eMenuItems][i] == playertextid)
+			if(g_MenuItems[playerid][i] == playertextid)
 			{
 				new index, extraid, modelid;
-				index = (i + (g_ePlayerMenuData[playerid][g_eMenuPage] - 1) * MAX_ITEM_PER_PAGE);
-				extraid = g_ePlayerMenuData[playerid][g_eMenuExtra];
-				modelid = list_get(g_ePlayerMenuData[playerid][g_eMenuModels], index);
+				index = (i + (g_MenuCurrentPage[playerid] - 1) * MAX_ITEM_PER_PAGE);
+				extraid = g_MenuExtraID[playerid];
+				modelid = list_get(g_MenuModels[playerid], index);
 
 				if(extraid != PAWN_PLUS_EXTRA_ID)
 				{
@@ -484,7 +481,7 @@ public OnPlayerClickPlayerTextDraw(playerid, PlayerText:playertextid)
 	#if defined MS_OnPlayerClickPlayerTextDraw
 		return MS_OnPlayerClickPlayerTextDraw(playerid, PlayerText:playertextid);
 	#else
-		return 1;
+		return true;
 	#endif
 }
 
