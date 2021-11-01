@@ -213,7 +213,7 @@ static stock SetModelSelectionModelBox(playerid, count, const model[g_eMenuModel
 	if(model[g_eItemVehicleColor][0] != -1)
 	{
 		new secondarycolor = model[g_eItemVehicleColor][1] == -1 ? model[g_eItemVehicleColor][0] : model[g_eItemVehicleColor][1];
-		PlayerTextDrawSetPreviewVehCol(playerid, g_MenuItems[playerid][count], model[g_eItemVehicleColor][0], secondarycolor)
+		PlayerTextDrawSetPreviewVehCol(playerid, g_MenuItems[playerid][count], model[g_eItemVehicleColor][0], secondarycolor);
 	}
 
 	PlayerTextDrawShow(playerid, g_MenuItems[playerid][count]);
