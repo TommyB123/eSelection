@@ -51,7 +51,8 @@ static enum _:g_eMenuModelData
 	Float:g_eItemRotX,
 	Float:g_eItemRotY,
 	Float:g_eItemRotZ,
-	Float:g_eItemZoom
+	Float:g_eItemZoom,
+	g_eItemVehicleColor[2]
 }
 
 //pawnplus task data
@@ -69,7 +70,7 @@ const PAWN_PLUS_EXTRA_ID = 0x502B;
 static Task:ModelSelectionTask[MAX_PLAYERS];
 
 //functions
-stock AddModelMenuItem(List:menulist, modelid, const text[] = "", bool:usingrotation = false, Float:rotx = 0.0, Float:roty = 0.0, Float:rotz = 0.0, Float:zoom = 1.0)
+stock AddModelMenuItem(List:menulist, modelid, const text[] = "", bool:usingrotation = false, Float:rotx = 0.0, Float:roty = 0.0, Float:rotz = 0.0, Float:zoom = 1.0, vehiclecolor1 = -1, vehiclecolor2 = -1)
 {
 	new item[g_eMenuModelData];
 	item[g_eMenuModel] = modelid;
@@ -79,6 +80,8 @@ stock AddModelMenuItem(List:menulist, modelid, const text[] = "", bool:usingrota
 	item[g_eItemRotY] = roty;
 	item[g_eItemRotZ] = rotz;
 	item[g_eItemZoom] = zoom;
+	item[g_eItemVehicleColor][0] = vehiclecolor1;
+	item[g_eItemVehicleColor][1] = vehiclecolor2;
 	list_add_arr(menulist, item);
 }
 
@@ -205,6 +208,12 @@ static stock SetModelSelectionModelBox(playerid, count, const model[g_eMenuModel
 	else
 	{
 		PlayerTextDrawSetPreviewRot(playerid, g_MenuItems[playerid][count], 0.0, 0.0, 0.0);
+	}
+
+	if(model[g_eItemVehicleColor][0] != -1)
+	{
+		new secondarycolor = model[g_eItemVehicleColor][1] == -1 ? model[g_eItemVehicleColor][0] : model[g_eItemVehicleColor][1];
+		PlayerTextDrawSetPreviewVehCol(playerid, g_MenuItems[playerid][count], model[g_eItemVehicleColor][0], secondarycolor)
 	}
 
 	PlayerTextDrawShow(playerid, g_MenuItems[playerid][count]);
