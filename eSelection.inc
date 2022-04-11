@@ -316,12 +316,12 @@ public OnGameModeInit()
 	TextDrawLetterSize(g_MenuBackground, 0.000000, 22.912965);
 	TextDrawColor(g_MenuBackground, 0);
 	TextDrawSetOutline(g_MenuBackground, 0);
-	TextDrawSetProportional(g_MenuBackground, 1);
+	TextDrawSetProportional(g_MenuBackground, true);
 	TextDrawSetShadow(g_MenuBackground, 0);
-	TextDrawUseBox(g_MenuBackground, 1);
+	TextDrawUseBox(g_MenuBackground, true);
 	TextDrawBoxColor(g_MenuBackground, 0x000000DD);
 	TextDrawTextSize(g_MenuBackground, 121.333328, 0.000000);
-	TextDrawSetSelectable(g_MenuBackground, 0);
+	TextDrawSetSelectable(g_MenuBackground, false);
 
 	//right arrow
 	g_MenuRightArrow = TextDrawCreate(521.333374, 339.318542, "LD_BEAT:right");
@@ -379,7 +379,7 @@ public OnGameModeInit()
 	TextDrawSetOutline(g_MenuCloseButton, 0);
 	TextDrawBackgroundColor(g_MenuCloseButton, 0x00000033);
 	TextDrawFont(g_MenuCloseButton, 2);
-	TextDrawSetProportional(g_MenuCloseButton, 1);
+	TextDrawSetProportional(g_MenuCloseButton, true);
 	TextDrawSetSelectable(g_MenuCloseButton, true);
 
 	#if defined MS_OnGameModeInit
