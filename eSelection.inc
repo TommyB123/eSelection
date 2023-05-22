@@ -3,7 +3,14 @@
 #endif
 #define __eSelection_included
 
-#include <open.mp>
+#if !defined _INC_a_samp
+  #tryinclude <open.mp>
+#endif
+
+#if !defined _INC_open_mp
+  #include <a_samp>
+#endif
+
 #include <PawnPlus>
 
 #if !defined MAX_ITEM_PER_PAGE
@@ -14,6 +21,69 @@
 
 #define MODEL_RESPONSE_CANCEL (0)
 #define MODEL_RESPONSE_SELECT (1)
+
+#if !defined _INC_open_mp
+  #if !defined TextDrawBackgroundColour
+		#define TextDrawBackgroundColour TextDrawBackgroundColor
+	#endif
+
+  #if !defined PlayerTextDrawBoxColour
+		#define PlayerTextDrawBoxColour PlayerTextDrawBoxColor
+	#endif
+
+  #if !defined PlayerTextDrawBackgroundColour
+    #define PlayerTextDrawBackgroundColour PlayerTextDrawBackgroundColor
+  #endif
+
+  #if !defined PlayerTextDrawColour
+    #define PlayerTextDrawColour PlayerTextDrawColor
+  #endif
+
+  #if !defined TextDrawColour
+		#define TextDrawColour TextDrawColor 
+	#endif
+
+  #if !defined TextDrawBoxColour
+		#define TextDrawBoxColour TextDrawBoxColor
+	#endif
+
+  #if !defined TEXT_DRAW_FONT_0
+static enum
+{
+	UNKNOWN_TEXT_DRAW_FONT                     = -1,
+	// Numbers.
+	TEXT_DRAW_FONT_0,
+	TEXT_DRAW_FONT_1,
+	TEXT_DRAW_FONT_2,
+	TEXT_DRAW_FONT_3,
+  //TEXT_DRAW_FONT_SPRITE_DRAW // already defined in a_samp
+	// TEXT_DRAW_FONT_MODEL_PREVIEW // already defined in a_samp 
+	// From GTA.
+	TEXT_DRAW_FONT_BANK = 0,
+	TEXT_DRAW_FONT_STANDARD,
+	TEXT_DRAW_FONT_SPACEAGE,
+	TEXT_DRAW_FONT_HEADING,
+	// From open.mp.
+	TEXT_DRAW_FONT_BECKETT_REGULAR             = 0,
+	TEXT_DRAW_FONT_AHARONI_BOLD,
+	TEXT_DRAW_FONT_BANK_GOTHIC,
+	TEXT_DRAW_FONT_PRICEDOWN,
+	TEXT_DRAW_FONT_SPRITE,
+	TEXT_DRAW_FONT_PREVIEW
+}
+  #endif
+
+  #if !defined TEXT_DRAW_ALIGN_LEFT
+static enum __TEXT_DRAW_ALIGN 
+{
+	UNKNOWN_TEXT_DRAW_ALIGN                    = -1,
+	TEXT_DRAW_ALIGN_LEFT                       = 1,
+	TEXT_DRAW_ALIGN_CENTRE,
+	TEXT_DRAW_ALIGN_CENTER = TEXT_DRAW_ALIGN_CENTRE,
+	TEXT_DRAW_ALIGN_RIGHT
+}
+  #endif
+#endif
 
 forward OnModelSelectionResponse(playerid, extraid, index, modelid, response);
 
@@ -213,7 +283,12 @@ static stock SetModelSelectionModelBox(playerid, count, const model[g_eMenuModel
 	if(model[g_eItemVehicleColor][0] != -1)
 	{
 		new secondarycolor = model[g_eItemVehicleColor][1] == -1 ? model[g_eItemVehicleColor][0] : model[g_eItemVehicleColor][1];
-		PlayerTextDrawSetPreviewVehCol(playerid, g_MenuItems[playerid][count], model[g_eItemVehicleColor][0], secondarycolor);
+		
+    #if defined _INC_open_mp
+    PlayerTextDrawSetPreviewVehicleColours(playerid, g_MenuItems[playerid][count], model[g_eItemVehicleColor][0], secondarycolor);
+    #else
+    PlayerTextDrawSetPreviewVehCol(playerid, g_MenuItems[playerid][count], model[g_eItemVehicleColor][0], secondarycolor);
+    #endif
 	}
 
 	PlayerTextDrawShow(playerid, g_MenuItems[playerid][count]);
@@ -231,23 +306,23 @@ static stock CreateModelSelectionPlayerTDs(playerid)
 	g_MenuPageNumber[playerid] = CreatePlayerTextDraw(playerid, 523.333251, 139.792648, "0/1");
 	PlayerTextDrawLetterSize(playerid, g_MenuPageNumber[playerid], 0.190666, 1.110518);
 	PlayerTextDrawAlignment(playerid, g_MenuPageNumber[playerid], TEXT_DRAW_ALIGN_RIGHT);
-	PlayerTextDrawColor(playerid, g_MenuPageNumber[playerid], 0xC0C0C0FF);
+	PlayerTextDrawColour(playerid, g_MenuPageNumber[playerid], 0xC0C0C0FF);
 	PlayerTextDrawSetShadow(playerid, g_MenuPageNumber[playerid], 0);
 	PlayerTextDrawSetOutline(playerid, g_MenuPageNumber[playerid], 1);
-	PlayerTextDrawBackgroundColor(playerid, g_MenuPageNumber[playerid], 0x00000033);
+	PlayerTextDrawBackgroundColour(playerid, g_MenuPageNumber[playerid], 0x00000033);
 	PlayerTextDrawFont(playerid, g_MenuPageNumber[playerid], TEXT_DRAW_FONT_SPACEAGE);
-	PlayerTextDrawSetProportional(playerid, g_MenuPageNumber[playerid], 1);
+	PlayerTextDrawSetProportional(playerid, g_MenuPageNumber[playerid], true);
 
 	//header test
 	g_MenuHeaderText[playerid] = CreatePlayerTextDraw(playerid, 128.333312, 139.377761, "header");
 	PlayerTextDrawLetterSize(playerid, g_MenuHeaderText[playerid], 0.315000, 1.247407);
 	PlayerTextDrawAlignment(playerid, g_MenuHeaderText[playerid], TEXT_DRAW_ALIGN_LEFT);
-	PlayerTextDrawColor(playerid, g_MenuHeaderText[playerid], 0xC0C0C0FF);
+	PlayerTextDrawColour(playerid, g_MenuHeaderText[playerid], 0xC0C0C0FF);
 	PlayerTextDrawSetShadow(playerid, g_MenuHeaderText[playerid], 0);
 	PlayerTextDrawSetOutline(playerid, g_MenuHeaderText[playerid], 1);
-	PlayerTextDrawBackgroundColor(playerid, g_MenuHeaderText[playerid], 0x00000033);
+	PlayerTextDrawBackgroundColour(playerid, g_MenuHeaderText[playerid], 0x00000033);
 	PlayerTextDrawFont(playerid, g_MenuHeaderText[playerid], TEXT_DRAW_FONT_SPACEAGE);
-	PlayerTextDrawSetProportional(playerid, g_MenuHeaderText[playerid], 1);
+	PlayerTextDrawSetProportional(playerid, g_MenuHeaderText[playerid], true);
 
 	new Float:x = 78.0, Float:y = 162.0;
 	for(new i = 0, idx = 0; i < MAX_ITEM_PER_PAGE; i ++)
@@ -264,26 +339,26 @@ static stock CreateModelSelectionPlayerTDs(playerid)
 		idx++;
 
 		g_MenuItems[playerid][i] = CreatePlayerTextDraw(playerid, x, y, "_");
-		PlayerTextDrawBackgroundColor(playerid, g_MenuItems[playerid][i], 0xD3D3D344);
+		PlayerTextDrawBackgroundColour(playerid, g_MenuItems[playerid][i], 0xD3D3D344);
 		PlayerTextDrawFont(playerid, g_MenuItems[playerid][i], TEXT_DRAW_FONT_PREVIEW);
 		PlayerTextDrawLetterSize(playerid, g_MenuItems[playerid][i], 1.430000, 5.700000);
-		PlayerTextDrawColor(playerid, g_MenuItems[playerid][i], -1);
+		PlayerTextDrawColour(playerid, g_MenuItems[playerid][i], -1);
 		PlayerTextDrawSetOutline(playerid, g_MenuItems[playerid][i], 1);
-		PlayerTextDrawSetProportional(playerid, g_MenuItems[playerid][i], 1);
-		PlayerTextDrawUseBox(playerid, g_MenuItems[playerid][i], 1);
-		PlayerTextDrawBoxColor(playerid, g_MenuItems[playerid][i], 0);
+		PlayerTextDrawSetProportional(playerid, g_MenuItems[playerid][i], true);
+		PlayerTextDrawUseBox(playerid, g_MenuItems[playerid][i], true);
+		PlayerTextDrawBoxColour(playerid, g_MenuItems[playerid][i], 0);
 		PlayerTextDrawTextSize(playerid, g_MenuItems[playerid][i], 61.000000, 54.000000);
-		PlayerTextDrawSetSelectable(playerid, g_MenuItems[playerid][i], 1);
+		PlayerTextDrawSetSelectable(playerid, g_MenuItems[playerid][i], true);
 
 		g_MenuItemText[playerid][i] = CreatePlayerTextDraw(playerid, x + 31.0, y, "_");
 		PlayerTextDrawFont(playerid, g_MenuItemText[playerid][i], TEXT_DRAW_FONT_SPACEAGE);
 		PlayerTextDrawLetterSize(playerid, g_MenuItemText[playerid][i], 0.199999, 0.6);
 		PlayerTextDrawAlignment(playerid, g_MenuItemText[playerid][i], TEXT_DRAW_ALIGN_CENTRE);
 		PlayerTextDrawSetOutline(playerid, g_MenuItemText[playerid][i], 0);
-		PlayerTextDrawSetProportional(playerid, g_MenuItemText[playerid][i], 1);
+		PlayerTextDrawSetProportional(playerid, g_MenuItemText[playerid][i], true);
 		PlayerTextDrawTextSize(playerid, g_MenuItemText[playerid][i], 0.0, 62.0);
 		PlayerTextDrawSetShadow(playerid, g_MenuItemText[playerid][i], 0);
-		PlayerTextDrawColor(playerid, g_MenuItemText[playerid][i], 0xD3D3D3AA);
+		PlayerTextDrawColour(playerid, g_MenuItemText[playerid][i], 0xD3D3D3AA);
 	}
 }
 
@@ -310,16 +385,16 @@ public OnGameModeInit()
 {
 	//textdraw background
 	g_MenuBackground = TextDrawCreate(531.333374, 140.877777, "_");
-	TextDrawBackgroundColor(g_MenuBackground, 0);
+	TextDrawBackgroundColour(g_MenuBackground, 0);
 	TextDrawAlignment(g_MenuBackground, TEXT_DRAW_ALIGN_LEFT);
 	TextDrawFont(g_MenuBackground, TEXT_DRAW_FONT_BANK);
 	TextDrawLetterSize(g_MenuBackground, 0.000000, 22.912965);
-	TextDrawColor(g_MenuBackground, 0);
+	TextDrawColour(g_MenuBackground, 0);
 	TextDrawSetOutline(g_MenuBackground, 0);
 	TextDrawSetProportional(g_MenuBackground, true);
 	TextDrawSetShadow(g_MenuBackground, 0);
 	TextDrawUseBox(g_MenuBackground, true);
-	TextDrawBoxColor(g_MenuBackground, 0x000000DD);
+	TextDrawBoxColour(g_MenuBackground, 0x000000DD);
 	TextDrawTextSize(g_MenuBackground, 121.333328, 0.000000);
 	TextDrawSetSelectable(g_MenuBackground, false);
 
@@ -328,7 +403,7 @@ public OnGameModeInit()
 	TextDrawLetterSize(g_MenuRightArrow, 0.000000, 0.000000);
 	TextDrawTextSize(g_MenuRightArrow, 5.999938, 7.051818);
 	TextDrawAlignment(g_MenuRightArrow, TEXT_DRAW_ALIGN_LEFT);
-	TextDrawColor(g_MenuRightArrow, -1);
+	TextDrawColour(g_MenuRightArrow, -1);
 	TextDrawSetShadow(g_MenuRightArrow, 0);
 	TextDrawSetOutline(g_MenuRightArrow, 0);
 	TextDrawFont(g_MenuRightArrow, TEXT_DRAW_FONT_SPRITE);
@@ -339,7 +414,7 @@ public OnGameModeInit()
 	TextDrawLetterSize(g_MenuLeftArrow, 0.000000, 0.000000);
 	TextDrawTextSize(g_MenuLeftArrow, 5.999938, 7.051818);
 	TextDrawAlignment(g_MenuLeftArrow, TEXT_DRAW_ALIGN_LEFT);
-	TextDrawColor(g_MenuLeftArrow, -1);
+	TextDrawColour(g_MenuLeftArrow, -1);
 	TextDrawSetShadow(g_MenuLeftArrow, 0);
 	TextDrawSetOutline(g_MenuLeftArrow, 0);
 	TextDrawFont(g_MenuLeftArrow, TEXT_DRAW_FONT_SPRITE);
@@ -350,9 +425,9 @@ public OnGameModeInit()
 	TextDrawLetterSize(g_MenuTopBanner, 0.000000, -0.447120);
 	TextDrawTextSize(g_MenuTopBanner, 121.333328, 0.000000);
 	TextDrawAlignment(g_MenuTopBanner, TEXT_DRAW_ALIGN_LEFT);
-	TextDrawColor(g_MenuTopBanner, 0);
+	TextDrawColour(g_MenuTopBanner, 0);
 	TextDrawUseBox(g_MenuTopBanner, true);
-	TextDrawBoxColor(g_MenuTopBanner, 0x808080FF);
+	TextDrawBoxColour(g_MenuTopBanner, 0x808080FF);
 	TextDrawSetShadow(g_MenuTopBanner, 0);
 	TextDrawSetOutline(g_MenuTopBanner, 0);
 	TextDrawFont(g_MenuTopBanner, TEXT_DRAW_FONT_BANK);
@@ -362,9 +437,9 @@ public OnGameModeInit()
 	TextDrawLetterSize(g_MenuBottomBanner, 0.000000, -0.447120);
 	TextDrawTextSize(g_MenuBottomBanner, 120.666656, 0.000000);
 	TextDrawAlignment(g_MenuBottomBanner, TEXT_DRAW_ALIGN_LEFT);
-	TextDrawColor(g_MenuBottomBanner, 0);
+	TextDrawColour(g_MenuBottomBanner, 0);
 	TextDrawUseBox(g_MenuBottomBanner, true);
-	TextDrawBoxColor(g_MenuBottomBanner, 0x808080FF);
+	TextDrawBoxColour(g_MenuBottomBanner, 0x808080FF);
 	TextDrawSetShadow(g_MenuBottomBanner, 0);
 	TextDrawSetOutline(g_MenuBottomBanner, 0);
 	TextDrawFont(g_MenuBottomBanner, TEXT_DRAW_FONT_BANK);
@@ -374,10 +449,10 @@ public OnGameModeInit()
 	TextDrawLetterSize(g_MenuCloseButton, 0.128333, 0.957036);
 	TextDrawTextSize(g_MenuCloseButton, 10.5021, 10.0187);
 	TextDrawAlignment(g_MenuCloseButton, TEXT_DRAW_ALIGN_CENTRE);
-	TextDrawColor(g_MenuCloseButton, 0xC0C0C0FF);
+	TextDrawColour(g_MenuCloseButton, 0xC0C0C0FF);
 	TextDrawSetShadow(g_MenuCloseButton, 0);
 	TextDrawSetOutline(g_MenuCloseButton, 0);
-	TextDrawBackgroundColor(g_MenuCloseButton, 0x00000033);
+	TextDrawBackgroundColour(g_MenuCloseButton, 0x00000033);
 	TextDrawFont(g_MenuCloseButton, TEXT_DRAW_FONT_SPACEAGE);
 	TextDrawSetProportional(g_MenuCloseButton, true);
 	TextDrawSetSelectable(g_MenuCloseButton, true);
