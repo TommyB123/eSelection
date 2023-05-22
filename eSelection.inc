@@ -74,7 +74,7 @@ static enum
   #endif
 
   #if !defined TEXT_DRAW_ALIGN_LEFT
-static enum __TEXT_DRAW_ALIGN 
+static enum
 {
 	UNKNOWN_TEXT_DRAW_ALIGN                    = -1,
 	TEXT_DRAW_ALIGN_LEFT                       = 1,
