@@ -1,4 +1,4 @@
-#include <open.mp>
+#include <a_samp>
 
 #define PP_SYNTAX_AWAIT
 #include "eSelection.inc"
