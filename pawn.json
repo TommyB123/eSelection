@@ -4,9 +4,7 @@
 	"entry": "test.pwn",
 	"output": "test.amx",
 	"dependencies": [
-		"openmultiplayer/omp-stdlib",
-		"pawn-lang/samp-stdlib@open.mp",
-		"pawn-lang/pawn-stdlib@open.mp",
+		"pawn-lang/samp-stdlib",
 		"IllidanS4/PawnPlus:v1.4.0.1"
 	]
 }
