@@ -100,7 +100,7 @@ public OnModelSelectionResponse(playerid, extraid, index, modelid, response)
         {
             // assign the player the skin of their choosing
             SetPlayerSkin(playerid, modelid);
-            return 1;
+            return true;
         }
     }
 }
@@ -132,10 +132,7 @@ ShowSkinModelMenu(playerid)
 
     // make sure the player actually clicked on a model and not the close button
     if(response[E_MODEL_SELECTION_RESPONSE] == MODEL_RESPONSE_SELECT)
-    {
-        // assign the player the skin of their choosing
-        SetPlayerSkin(playerid, response[E_MODEL_SELECTION_MODELID]);
-    }
+        SetPlayerSkin(playerid, response[E_MODEL_SELECTION_MODELID]); // assign the player the skin of their choosing
 }
 ```
 
